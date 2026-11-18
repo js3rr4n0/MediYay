@@ -166,6 +166,9 @@
   .btn.primary{background:var(--teal);color:#fff;border-color:var(--teal)}
   .btn.danger{color:var(--danger)}
   .hint{font-size:12px;color:var(--muted);margin:8px 0 0}
+  .panel-anniv .row svg{color:var(--rose)}
+  .anniv-big{margin:8px 0;padding:12px;border-radius:12px;background:var(--soft);color:var(--rose);font-family:Merriweather,serif;font-weight:700;font-size:17px;text-align:center}
+  .anniv-big small{display:block;font-family:Inter,sans-serif;font-weight:500;font-size:12px;color:var(--muted);margin-top:2px}
 </style>
 </head>
 <body>
@@ -204,6 +207,25 @@
           <div class="row" style="flex-wrap:wrap"><svg class="i" viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg><div class="lab">Adherence</div><div class="val" id="sumAdh">—</div>
             <div class="bar" style="flex-basis:100%"><i id="adhBar" style="width:0"></i></div>
           </div>
+        </div>
+      </section>
+
+      <section class="card panel-anniv">
+        <div class="panel-head rose">
+          <svg class="i" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>
+          <h2>Anniversary Tracker</h2>
+        </div>
+        <div class="panel-body">
+          <div class="row"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>
+            <div class="lab">Work start date</div>
+            <input class="date-in" id="annStart" type="date">
+          </div>
+          <div class="anniv-big" id="annSince">Set your start date to see your time working.</div>
+          <div class="row" id="annNextRow" hidden><svg class="i" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>
+            <div class="lab">Next anniversary<small id="annNextLbl"></small></div>
+            <button class="today-btn" id="annGo" type="button"></button>
+          </div>
+          <p class="hint">A ⭐ appears on your monthly anniversary date — click it to show how long you've been working.</p>
         </div>
       </section>
 
@@ -342,6 +364,7 @@
     put(nthWeekday(y,9,1,2), 'Columbus Day');
     put(new Date(y,10,11), 'Veterans Day');
     put(nthWeekday(y,10,4,4), 'Thanksgiving');
+    put(addDays(nthWeekday(y,10,4,4), 1), 'Black Friday');
     put(new Date(y,11,25), 'Christmas Day');
     return holidayCache[y] = h;
   }
@@ -448,6 +471,7 @@
     keys.forEach(k => { const d = dayData(k); if (k === today || d.shifts.length || d.sessions.length) openDays.add(k); });
     daysEl.innerHTML = keys.map(renderDay).join('');
     renderPayment();
+    renderAnniv();
     updateTotals();
   }
 
@@ -627,6 +651,46 @@
   document.getElementById('todayBtn').onclick = () => { curWeek = weekStartOf(new Date()); renderWeek(); };
 
   /* ---------- Settings ---------- */
+  /* ---------- Anniversary tracker ---------- */
+  function durationText(months, extraDays){
+    const y = Math.floor(months/12), m = months % 12, parts = [];
+    if (y) parts.push(`${y} year${y>1?'s':''}`);
+    if (m) parts.push(`${m} month${m>1?'s':''}`);
+    if (extraDays) parts.push(`${extraDays} day${extraDays>1?'s':''}`);
+    return parts.join(' ') || '0 days';
+  }
+  function renderAnniv(){
+    const inp = document.getElementById('annStart'), since = document.getElementById('annSince');
+    const nextRow = document.getElementById('annNextRow');
+    inp.value = S.settings.startDate || '';
+    if (!S.settings.startDate){ since.textContent = 'Set your start date to see your time working.'; nextRow.hidden = true; return; }
+    const s = fromIso(S.settings.startDate), today = fromIso(iso(new Date()));
+    if (today < s){ since.innerHTML = 'Starts soon!<small>Your start date is in the future.</small>'; }
+    // whole months completed up to today
+    let months = (today.getFullYear()-s.getFullYear())*12 + today.getMonth()-s.getMonth();
+    const anchor = mo => { const d = new Date(s.getFullYear(), s.getMonth()+mo, 1);
+      return new Date(d.getFullYear(), d.getMonth(), Math.min(s.getDate(), new Date(d.getFullYear(), d.getMonth()+1, 0).getDate())); };
+    if (anchor(months) > today) months--;
+    if (today >= s){
+      const days = Math.round((today - anchor(months)) / 864e5);
+      since.innerHTML = `${durationText(months, days)}<small>working since ${MON[s.getMonth()]} ${s.getDate()}, ${s.getFullYear()}</small>`;
+    }
+    let nm = Math.max(1, months + 1), next = anchor(nm);
+    if (iso(anchor(months)) === iso(today) && months > 0){ nm = months; next = today; }
+    nextRow.hidden = false;
+    document.getElementById('annNextLbl').textContent = durationText(nm, 0) + (nm === months ? ' — today! 🎉' : '');
+    const go = document.getElementById('annGo');
+    go.textContent = `${MON[next.getMonth()]} ${next.getDate()}, ${next.getFullYear()}`;
+    go.onclick = () => {
+      curWeek = weekStartOf(next);
+      openChips.add(`${iso(next)}|star`);
+      renderWeek();
+    };
+  }
+  document.getElementById('annStart').addEventListener('change', e => {
+    S.settings.startDate = e.target.value; save(); renderWeek();
+  });
+
   const dlg = document.getElementById('settings');
   document.getElementById('openSettings').onclick = () => {
     document.getElementById('setStart').value = S.settings.startDate || '';
