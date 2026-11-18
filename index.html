@@ -223,7 +223,7 @@
         <div class="panel-body" id="payPanel">
           <div class="row"><svg class="i" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1M14 9h1M9 13h1M14 13h1M10 21v-4h4v4"/></svg>
             <div class="lab">Reported Hours <small>(by company)</small></div>
-            <div class="edit"><input class="hm-in" id="repH" type="number" min="0" step="1" inputmode="numeric" placeholder="0"><span class="unit">h</span><input class="hm-in" id="repM" type="number" min="0" max="59" step="1" inputmode="numeric" placeholder="00"><span class="unit">m</span></div>
+            <div class="edit"><input class="money-in" id="repHours" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" style="width:90px"><span class="unit">h</span></div>
           </div>
           <div class="row"><svg class="i" viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
             <div class="lab">Pay Rate</div>
@@ -616,14 +616,19 @@
 
   /* ---------- Payment ---------- */
   const pay = {
-    repH: document.getElementById('repH'), repM: document.getElementById('repM'),
+    hours: document.getElementById('repHours'),
     rate: document.getElementById('rate'), received: document.getElementById('received'),
     dateReceived: document.getElementById('dateReceived'),
   };
+  function reportedHours(w){
+    if (w.hours != null) return w.hours;
+    if (w.repH == null && w.repM == null) return null;
+    return Math.round((num(w.repH) + num(w.repM)/60) * 100) / 100;
+  }
   function renderPayment(){
     const w = S.weeks[iso(curWeek)] || {};
-    pay.repH.value = w.repH ?? '';
-    pay.repM.value = w.repM ?? '';
+    const h = reportedHours(w);
+    pay.hours.value = h == null ? '' : h;
     pay.rate.value = w.rate ?? S.settings.payRate ?? '';
     pay.received.value = w.received ?? '';
     pay.dateReceived.value = w.dateReceived ?? '';
@@ -631,7 +636,7 @@
   function updatePayment(){
     const w = S.weeks[iso(curWeek)] || {};
     const rate = w.rate ?? S.settings.payRate ?? 0;
-    const hours = num(w.repH) + num(w.repM)/60;
+    const hours = reportedHours(w) || 0;
     const expected = hours * num(rate);
     document.getElementById('expected').textContent = money(expected);
     const hint = document.getElementById('diffHint');
@@ -645,6 +650,7 @@
     el.addEventListener('input', () => {
       const w = weekRec();
       if (el.value === '') delete w[f]; else w[f] = (f === 'dateReceived') ? el.value : num(el.value);
+      if (f === 'hours'){ delete w.repH; delete w.repM; }
       updatePayment(); save();
     });
   });
