@@ -114,14 +114,20 @@
   .add:hover{text-decoration:underline}
 
   .table-scroll{overflow-x:auto}
-  table.sessions{width:100%;border-collapse:collapse;min-width:640px}
+  table.sessions{width:100%;border-collapse:collapse;min-width:740px}
   .sessions th{font-size:11.5px;font-weight:600;color:var(--muted);text-align:left;padding:4px 6px}
   .sessions td{padding:4px 6px;vertical-align:middle}
   .sessions td.num{font-weight:700;text-align:center;width:40px}
   .mmss{display:inline-flex;align-items:center;gap:3px}
   .small-in{width:44px;border:1px solid var(--line);border-radius:8px;padding:6px 4px;text-align:center;background:#fff;font-weight:600;font-size:13px}
   .small-in:focus,.money-in:focus,.field input:focus{outline:0;border-color:var(--pink);box-shadow:0 0 0 3px rgba(216,135,152,.2)}
-  .calls{width:60px}
+  .calls{width:52px;-moz-appearance:textfield;appearance:textfield}
+  .calls::-webkit-inner-spin-button,.calls::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+  .counter{display:inline-flex;align-items:center;gap:4px}
+  .cbtn{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--teal);font-size:18px;font-weight:700;line-height:1;display:grid;place-items:center;padding:0}
+  .cbtn.plus{background:var(--teal);color:#fff;border-color:var(--teal)}
+  .cbtn:active{transform:scale(.94)}
+  .calldisc{display:block;font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap}
   .net{display:inline-block;background:#dff0da;color:#2f6b25;font-weight:700;border-radius:999px;padding:4px 10px;font-size:12.5px;white-space:nowrap}
   .net.empty{background:#f3eaec;color:var(--muted)}
 
@@ -202,6 +208,7 @@
         <div class="panel-body">
           <div class="row"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><div class="lab">Total Net Hours <small>(logged)</small></div><div class="val" id="sumNet">0h 00m 00s</div></div>
           <div class="row"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><div class="lab">Total Scheduled Hours</div><div class="val" id="sumSched">0h 00m</div></div>
+          <div class="row"><svg class="i" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg><div class="lab">Total Calls<small id="sumCallsDisc">0 × 15s discounted</small></div><div class="val" id="sumCalls">0</div></div>
           <div class="row" style="flex-wrap:wrap"><svg class="i" viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg><div class="lab">Adherence</div><div class="val" id="sumAdh">—</div>
             <div class="bar" style="flex-basis:100%"><i id="adhBar" style="width:0"></i></div>
           </div>
@@ -444,6 +451,7 @@
   }
   const span = (a,b) => { let d = b - a; if (d < 0) d += 1440; return d; };
   const fmtHMS = sec => { sec = Math.max(0, Math.round(sec)); return `${Math.floor(sec/3600)}h ${pad(Math.floor(sec%3600/60))}m ${pad(sec%60)}s`; };
+  const fmtMS = sec => sec >= 3600 ? fmtHMS(sec) : `${Math.floor(sec/60)}m ${pad(sec%60)}s`;
   const fmtHM = min => `${Math.floor(min/60)}h ${pad(Math.round(min%60))}m`;
   const money = n => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n || 0);
   const num = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
@@ -456,8 +464,10 @@
     const on = secOf(s,'on'), off = secOf(s,'off');
     if (on == null || off == null) return null;
     let d = off - on; if (d < 0) d += 86400;
-    return Math.max(0, d - (num(s.bm)*60 + num(s.bs)));
+    return Math.max(0, d - (num(s.bm)*60 + num(s.bs)) - callsSec(s));
   }
+  const CALL_SEC = 15;   // each call discounts 15 seconds from net time
+  const callsSec = s => Math.round(num(s.calls)) * CALL_SEC;
   function shiftMins(s){ return (s.start == null || s.end == null) ? 0 : span(s.start, s.end); }
   function dayNet(k){ return dayData(k).sessions.reduce((t,s) => t + (sessionNet(s) || 0), 0); }
   function daySched(k){ return dayData(k).shifts.reduce((t,s) => t + shiftMins(s), 0); }
@@ -520,8 +530,8 @@
         <td>${timeInput('session', i, 'on', secOf(s,'on'))}</td>
         <td>${timeInput('session', i, 'off', secOf(s,'off'))}</td>
         <td><span class="mmss"><input class="small-in" type="number" min="0" inputmode="numeric" data-kind="session" data-idx="${i}" data-f="bm" value="${s.bm ?? ''}" placeholder="00"> : <input class="small-in" type="number" min="0" max="59" inputmode="numeric" data-kind="session" data-idx="${i}" data-f="bs" value="${s.bs ?? ''}" placeholder="00"></span></td>
-        <td><input class="small-in calls" type="number" min="0" inputmode="numeric" data-kind="session" data-idx="${i}" data-f="calls" value="${s.calls ?? ''}" placeholder="0"></td>
-        <td><span class="net" data-net="${i}"></span></td>
+        <td><span class="counter"><button class="cbtn" data-call="-1" data-idx="${i}" aria-label="One call less">−</button><input class="small-in calls" type="number" min="0" step="1" inputmode="numeric" data-kind="session" data-idx="${i}" data-f="calls" value="${s.calls ?? ''}" placeholder="0"><button class="cbtn plus" data-call="1" data-idx="${i}" aria-label="One call more">+</button></span></td>
+        <td><span class="net" data-net="${i}"></span><span class="calldisc" data-disc="${i}"></span></td>
         <td><button class="del" data-del="session" data-idx="${i}" aria-label="Delete session">${I.trash}</button></td>
       </tr>`).join('');
     return `
@@ -552,7 +562,7 @@
   }
 
   function updateTotals(){
-    let net = 0, sched = 0;
+    let net = 0, sched = 0, calls = 0;
     daysEl.querySelectorAll('.day').forEach(sec => {
       const k = sec.dataset.date, data = dayData(k);
       const n = dayNet(k), sc = daySched(k);
@@ -564,7 +574,14 @@
         el.textContent = v == null ? '—' : fmtHMS(v);
         el.classList.toggle('empty', v == null);
       });
+      sec.querySelectorAll('[data-disc]').forEach(el => {
+        const c = callsSec(data.sessions[+el.dataset.disc] || {});
+        el.textContent = c ? `−${fmtMS(c)} for calls` : '';
+      });
+      data.sessions.forEach(s => calls += Math.round(num(s.calls)));
     });
+    document.getElementById('sumCalls').textContent = calls;
+    document.getElementById('sumCallsDisc').textContent = `${fmtMS(calls*CALL_SEC)} discounted (15s each)`;
     document.getElementById('sumNet').textContent = fmtHMS(net);
     document.getElementById('sumSched').textContent = fmtHM(sched);
     const adh = sched ? (net/60) / sched * 100 : null;
@@ -630,6 +647,13 @@
       if (add.dataset.add === 'shift') day.shifts.push({start:null, end:null});
       else day.sessions.push({onS:null, offS:null, bm:'', bs:'', calls:''});
       rerenderDay(sec, k, add.dataset.add); save(); return;
+    }
+    const cb = e.target.closest('[data-call]');
+    if (cb){
+      const item = ensureDay(k).sessions[+cb.dataset.idx]; if (!item) return;
+      item.calls = Math.max(0, Math.round(num(item.calls)) + (+cb.dataset.call));
+      sec.querySelector(`input[data-f="calls"][data-idx="${cb.dataset.idx}"]`).value = item.calls;
+      updateTotals(); save(); return;
     }
     const del = e.target.closest('[data-del]');
     if (del){
