@@ -1,17 +1,11 @@
 // Vercel serverless function: stores the whole Worklog state as one JSON row in Postgres.
 // Works with any Postgres from Vercel → Storage (Neon). Needs these environment variables:
 //   DATABASE_URL (or POSTGRES_URL) – added automatically when you connect the database
-//   APP_PASSWORD                   – any password you choose; the page asks for it once
+// No password: anyone with the site link can read and change the data.
 import { neon } from '@neondatabase/serverless';
-import { timingSafeEqual } from 'node:crypto';
 
 const ROW_ID = 'default';
 const MAX_BYTES = 4_000_000;
-
-function sameSecret(a, b) {
-  const x = Buffer.from(String(a)), y = Buffer.from(String(b));
-  return x.length === y.length && timingSafeEqual(x, y);
-}
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
@@ -19,13 +13,6 @@ export default async function handler(req, res) {
   const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
   if (!dbUrl) {
     return res.status(503).json({ error: 'No database connected yet (Vercel → Storage).' });
-  }
-  const password = process.env.APP_PASSWORD;
-  if (!password) {
-    return res.status(503).json({ error: 'Set the APP_PASSWORD environment variable in Vercel.' });
-  }
-  if (!sameSecret(req.headers['x-app-key'] || '', password)) {
-    return res.status(401).json({ error: 'Wrong or missing password.' });
   }
 
   try {

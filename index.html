@@ -296,14 +296,12 @@
     return blank();
   }
   /* ---------- Storage: this browser + optional Vercel database (api/data) ---------- */
-  const PASS_KEY = 'worklog-app-key';
   let cloud = false, cloudMsg = 'Saved in this browser only.';
   let saveTimer, cloudBusy = false, cloudDirty = false;
-  const getKey = () => { try{ return localStorage.getItem(PASS_KEY) || ''; }catch(e){ return ''; } };
   const writeLocal = () => { try{ localStorage.setItem(KEY, JSON.stringify(S)); return true; }catch(e){ return false; } };
   const api = (method, body) => fetch('api/data', {
     method, cache:'no-store',
-    headers:{ 'Content-Type':'application/json', 'X-App-Key':getKey() },
+    headers:{ 'Content-Type':'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   });
   function save(){
@@ -325,28 +323,19 @@
   }
   async function initCloud(){
     if (location.protocol === 'file:') return;
-    for (let attempt = 0; attempt < 3; attempt++){
-      let r;
-      try{ r = await api('GET'); }catch(e){ return; }
-      if (r.status === 401){
-        const k = prompt(attempt ? 'Wrong password. Enter your Worklog password:' : 'Enter your Worklog password:');
-        if (k === null){ cloudMsg = 'Database connected, but no password entered. Saving in this browser only.'; return; }
-        try{ localStorage.setItem(PASS_KEY, k); }catch(e){}
-        continue;
-      }
-      if (!r.ok){
-        try{ const j = await r.json(); if (j.error) cloudMsg = 'Saving in this browser only. ' + j.error; }catch(e){}
-        return;
-      }
-      const j = await r.json();
-      cloud = true; cloudMsg = 'Saved to your Vercel database (and a copy in this browser).';
-      const remote = j.data;
-      if (remote && remote.settings && remote.days && (remote.updatedAt || 0) >= (S.updatedAt || 0)){
-        S = Object.assign(blank(), remote); writeLocal(); renderWeek(); setStatus('saved');
-      } else {
-        pushCloud();
-      }
+    let r;
+    try{ r = await api('GET'); }catch(e){ return; }
+    if (!r.ok){
+      try{ const j = await r.json(); if (j.error) cloudMsg = 'Saving in this browser only. ' + j.error; }catch(e){}
       return;
+    }
+    const j = await r.json();
+    cloud = true; cloudMsg = 'Saved to your Vercel database (and a copy in this browser).';
+    const remote = j.data;
+    if (remote && remote.settings && remote.days && (remote.updatedAt || 0) >= (S.updatedAt || 0)){
+      S = Object.assign(blank(), remote); writeLocal(); renderWeek(); setStatus('saved');
+    } else {
+      pushCloud();
     }
   }
   function setStatus(s){
