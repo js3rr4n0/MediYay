@@ -519,7 +519,7 @@
   };
 
   /* ---------- Rendering ---------- */
-  // Every week opens with all days closed; opening a day only lasts while viewing that week.
+  // Every week opens with all days closed except today; opening a day only lasts while viewing that week.
   const openDays = new Set();
   try{ localStorage.removeItem('worklog-open-days'); }catch(e){}
   const setOpen = (k, v) => v ? openDays.add(k) : openDays.delete(k);
@@ -529,6 +529,7 @@
 
   function renderWeek(){
     openDays.clear();
+    openDays.add(iso(new Date()));   // only today starts open
     const keys = weekKeys();
     const end = addDays(curWeek, 6);
     document.getElementById('weekLabel').textContent =
